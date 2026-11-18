@@ -1,0 +1,24 @@
+{
+  "name": "@fair-rps/server",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "tsc -p tsconfig.test.json && vitest run"
+  },
+  "dependencies": {
+    "@fair-rps/shared": "*",
+    "@fastify/static": "^10.1.11",
+    "fastify": "^5.0.0",
+    "socket.io": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "socket.io-client": "^4.8.0",
+    "tsx": "^4.19.0"
+  }
+}
