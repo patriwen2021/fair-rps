@@ -34,3 +34,16 @@ export function progressFraction(remaining: number, total: number): number {
 export function isUrgent(phase: Phase, remaining: number | null): boolean {
   return phase === "commit" && remaining !== null && remaining <= URGENT_THRESHOLD_MS;
 }
+
+export interface TotalTrack {
+  key: string;
+  deadline: number;
+  total: number;
+}
+
+export function trackTotal(prev: TotalTrack | null, key: string, deadline: number, baseTotal: number, remaining: number): TotalTrack {
+  if (prev === null || prev.key !== key) return { key, deadline, total: Math.max(baseTotal, remaining) };
+  if (deadline > prev.deadline) return { key, deadline, total: prev.total + (deadline - prev.deadline) };
+  if (deadline < prev.deadline) return { key, deadline, total: prev.total };
+  return prev;
+}

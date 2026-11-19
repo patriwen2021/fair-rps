@@ -75,6 +75,10 @@ export interface Bracket {
   rounds: Round[];
 }
 
+export type HostAction =
+  | { id: number; kind: "extend"; seconds: number; at: EpochMs }
+  | { id: number; kind: "endEarly"; at: EpochMs };
+
 export interface RoomSnapshot {
   seq: number;
   serverNow: EpochMs;
@@ -89,6 +93,7 @@ export interface RoomSnapshot {
   round: number | null;
   playIndex: PlayIndex | null;
   championId: PlayerId | null;
+  lastHostAction: HostAction | null;
 }
 
 export type PlayerSource = { kind: "match"; matchIndex: number } | { kind: "bye" };
@@ -202,6 +207,7 @@ const SNAPSHOT_KEYS = [
   "round",
   "playIndex",
   "championId",
+  "lastHostAction",
 ];
 const PLAYER_KEYS = ["id", "nickname", "avatar", "connected", "status"];
 const BRACKET_KEYS = ["rounds"];

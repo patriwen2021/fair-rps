@@ -1,5 +1,7 @@
 import {
   COMMIT_SECONDS_DEFAULT,
+  EXTEND_SECONDS_OPTIONS,
+  MAX_REMAINING_SECONDS,
   COMMIT_SECONDS_MAX,
   COMMIT_SECONDS_MIN,
   MIN_PLAYERS_TO_START,
@@ -10,11 +12,12 @@ import {
   normalizeQuestion,
   type RoomSnapshot,
 } from "@fair-rps/shared";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ERROR_MESSAGE, PHASE_LABEL, questionErrorMessage, type ActionError } from "../lib/messages.js";
-import { hostAction } from "../lib/view.js";
+import { hostAction, isAtExtendLimit, lockedSummary } from "../lib/view.js";
 import type { ActionResult, RoomModel } from "../model.js";
 import { ChampionCard } from "./BracketScreen.js";
+import { useRemaining } from "./clock.js";
 import { onlineCount, RosterPanel } from "./Lobby.js";
 import { BracketTree } from "./Tree.js";
 import { QuestionBar, ResultsList, roundHeading, StatusBoard } from "./Watch.js";
@@ -119,6 +122,92 @@ function QuestionForm({
         開始猜拳
       </button>
     </form>
+  );
+}
+
+export function CommitControls({
+  model,
+  snapshot,
+  initialConfirming = false,
+}: {
+  model: RoomModel;
+  snapshot: RoomSnapshot;
+  initialConfirming?: boolean;
+}) {
+  const remaining = useRemaining(snapshot.deadline);
+  const [confirming, setConfirming] = useState(initialConfirming);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ActionError | null>(null);
+  const sending = useRef(false);
+  const atLimit = isAtExtendLimit(remaining);
+  const { locked, total } = lockedSummary(snapshot);
+
+  const send = (request: () => Promise<ActionResult<unknown>>) => {
+    if (sending.current) return;
+    sending.current = true;
+    setBusy(true);
+    setError(null);
+    void request().then((result) => {
+      sending.current = false;
+      setBusy(false);
+      if (!result.ok) setError(result.error);
+    });
+  };
+
+  return (
+    <section className="panel host-controls" aria-label="作答控制">
+      <h2>作答控制</h2>
+      <div className="host-controls-row">
+        {EXTEND_SECONDS_OPTIONS.map((seconds) => (
+          <button
+            key={seconds}
+            type="button"
+            className="btn btn-primary"
+            disabled={busy || atLimit || confirming}
+            onClick={() => send(() => model.hostExtend(seconds))}
+          >
+            +{seconds} 秒
+          </button>
+        ))}
+        <button type="button" className="btn btn-danger" disabled={busy || confirming} onClick={() => setConfirming(true)}>
+          提前結束
+        </button>
+      </div>
+      {atLimit && (
+        <p className="field-hint is-error" role="status">
+          已達上限：剩餘時間最多 {MAX_REMAINING_SECONDS} 秒，不能再加時。
+        </p>
+      )}
+      {confirming && (
+        <div className="confirm" role="alertdialog" aria-label="確認提前結束作答">
+          <p>
+            <strong>確定要提前結束作答？</strong>
+            已鎖定 {locked} / {total} 人。未鎖定者將判輸。
+          </p>
+          <div className="confirm-actions">
+            <button
+              type="button"
+              className="btn btn-danger"
+              disabled={busy}
+              onClick={() => {
+                setConfirming(false);
+                send(model.hostEndEarly);
+              }}
+            >
+              確定提前結束
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => setConfirming(false)}>
+              取消
+            </button>
+          </div>
+        </div>
+      )}
+      {error !== null && (
+        <p className="alert" role="alert">
+          {ERROR_MESSAGE[error]}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -246,6 +335,7 @@ export function HostScreen({ model, snapshot }: { model: RoomModel; snapshot: Ro
 
       {(phase === "commit" || phase === "reveal") && (
         <>
+          {phase === "commit" && <CommitControls model={model} snapshot={snapshot} />}
           <QuestionBar snapshot={snapshot} large />
           <StatusBoard snapshot={snapshot} large />
         </>

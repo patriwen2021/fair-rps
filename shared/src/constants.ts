@@ -1,6 +1,8 @@
 export const COMMIT_SECONDS_MIN = 10;
 export const COMMIT_SECONDS_MAX = 120;
 export const COMMIT_SECONDS_DEFAULT = 20;
+export const EXTEND_SECONDS_OPTIONS = [10, 30] as const;
+export const MAX_REMAINING_SECONDS = 120;
 export const REVEAL_GRACE_MS = 3_000;
 export const LOBBY_DISCONNECT_GRACE_MS = 30_000;
 

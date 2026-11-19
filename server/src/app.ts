@@ -262,12 +262,14 @@ export async function createApp(options: AppOptions): Promise<App> {
         return reject("INVALID_HOST_TOKEN");
       }
     }
-    if (!verifiedHost && !handshakes.allow(ip)) return reject("TOO_MANY_CONNECTIONS");
     if (verifiedHost) {
       role = "host";
-    } else if (handshake.sessionToken !== undefined) {
-      playerId = game.resumeSession(handshake.sessionToken);
-      if (playerId !== null) role = "player";
+    } else {
+      if (handshake.sessionToken !== undefined) {
+        playerId = game.resumeSession(handshake.sessionToken);
+        if (playerId !== null) role = "player";
+      }
+      if (playerId === null && !handshakes.allow(ip)) return reject("TOO_MANY_CONNECTIONS");
     }
     socket.data.role = role;
     socket.data.playerId = playerId;
@@ -336,6 +338,8 @@ export async function createApp(options: AppOptions): Promise<App> {
     handle("host:startRound", (payload) => game.hostStartRound(actor(), payload));
     handle("host:next", (payload) => game.hostNext(actor(), payload));
     handle("host:reset", (payload) => game.hostReset(actor(), payload));
+    handle("host:extend", (payload) => game.hostExtend(actor(), payload));
+    handle("host:endEarly", (payload) => game.hostEndEarly(actor(), payload));
 
     socket.on("disconnect", () => {
       if (socket.data.role === "host") {

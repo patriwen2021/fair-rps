@@ -6,6 +6,7 @@ import { ClockContext } from "./clock.js";
 import { DuelScreen } from "./Duel.js";
 import { EntryScreen } from "./Entry.js";
 import { HostScreen } from "./Host.js";
+import { HostActionToast } from "./HostActionToast.js";
 import { LobbyScreen } from "./Lobby.js";
 import { ResultsScreen, WatchScreen } from "./Watch.js";
 
@@ -120,6 +121,7 @@ export function Screen({ model }: { model: RoomModel }) {
           連線中斷，正在重新連線… 比賽計時不會暫停。
         </div>
       )}
+      {model.snapshot && <HostActionToast snapshot={model.snapshot} />}
       <Body model={model} />
     </ClockContext.Provider>
   );

@@ -16,6 +16,8 @@ export const ERROR_CODES = [
   "INVALID_AVATAR",
   "INVALID_COMMIT_SECONDS",
   "INVALID_QUESTION",
+  "INVALID_EXTEND",
+  "EXTEND_LIMIT",
   "NOT_ENOUGH_PLAYERS",
   "NOT_IN_MATCH",
   "MATCH_NOT_ACTIVE",
@@ -68,6 +70,10 @@ export interface HostStartRoundPayload {
   question: string;
 }
 
+export interface HostExtendPayload {
+  seconds: 10 | 30;
+}
+
 export interface CommitPayload {
   matchId: MatchId;
   playIndex: PlayIndex;
@@ -95,6 +101,8 @@ export interface ClientToServerEvents {
   "host:startRound": (payload: HostStartRoundPayload, ack: AckCallback<Empty>) => void;
   "host:next": (payload: Empty, ack: AckCallback<Empty>) => void;
   "host:reset": (payload: Empty, ack: AckCallback<Empty>) => void;
+  "host:extend": (payload: HostExtendPayload, ack: AckCallback<Empty>) => void;
+  "host:endEarly": (payload: Empty, ack: AckCallback<Empty>) => void;
 }
 
 export interface ServerToClientEvents {

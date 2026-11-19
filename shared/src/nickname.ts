@@ -31,13 +31,16 @@ export const RESERVED_NICKNAMES: readonly string[] = [
   "champion",
   "seed",
   "spectator",
+  "晉級",
+  "勝",
+  "判定",
+  "抽籤",
 ];
-
-export const RESERVED_NICKNAME_FRAGMENTS: readonly string[] = ["晉級", "勝", "判定", "抽籤"];
 
 const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}⠀]/gu;
 const WHITESPACE_RUN = /\p{Zs}+/gu;
 const COMBINING_MARK = /[\p{Mn}\p{Me}]/gu;
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 const COMPARISON_NOISE = /[\p{Z}\p{P}\p{S}\p{C}]+/gu;
 
 export function cleanNickname(raw: string): string {
@@ -59,9 +62,14 @@ function confusableForm(nickname: string): string {
 }
 
 export function isReservedNickname(nickname: string): boolean {
-  const form = confusableForm(nickname);
-  if (RESERVED_NICKNAMES.includes(form)) return true;
-  return RESERVED_NICKNAME_FRAGMENTS.some((fragment) => form.includes(fragment));
+  return RESERVED_NICKNAMES.includes(confusableForm(nickname));
+}
+
+function exceedsMarksPerGrapheme(nickname: string): boolean {
+  for (const { segment } of GRAPHEME_SEGMENTER.segment(nickname)) {
+    if ((segment.normalize("NFD").match(COMBINING_MARK) ?? []).length > NICKNAME_MAX_COMBINING_MARKS) return true;
+  }
+  return false;
 }
 
 export function normalizeNickname(raw: unknown): NicknameResult {
@@ -71,9 +79,7 @@ export function normalizeNickname(raw: unknown): NicknameResult {
   const length = codePointLength(nickname);
   if (length < NICKNAME_MIN_LENGTH) return { ok: false, error: "empty" };
   if (length > NICKNAME_MAX_LENGTH) return { ok: false, error: "too_long" };
-  if ((nickname.match(COMBINING_MARK) ?? []).length > NICKNAME_MAX_COMBINING_MARKS) {
-    return { ok: false, error: "too_many_marks" };
-  }
+  if (exceedsMarksPerGrapheme(nickname)) return { ok: false, error: "too_many_marks" };
   if (isReservedNickname(nickname)) return { ok: false, error: "reserved" };
   return { ok: true, nickname };
 }

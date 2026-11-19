@@ -1,6 +1,6 @@
 import type { RoomSnapshot } from "@fair-rps/shared";
-import { createContext, useContext, useEffect, useState } from "react";
-import { isUrgent, phaseDurationMs, progressFraction, remainingMs, secondsLeft } from "../lib/clock.js";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { isUrgent, phaseDurationMs, progressFraction, remainingMs, secondsLeft, trackTotal, type TotalTrack } from "../lib/clock.js";
 
 export interface ClockValue {
   offset: number;
@@ -35,8 +35,12 @@ export function countdownLabel(snapshot: RoomSnapshot): string {
 
 export function Countdown({ snapshot, size = "large" }: { snapshot: RoomSnapshot; size?: "large" | "small" | "huge" }) {
   const remaining = useRemaining(snapshot.deadline);
-  const total = phaseDurationMs(snapshot.phase, snapshot.commitSeconds);
-  if (remaining === null || total === null) return null;
+  const baseTotal = phaseDurationMs(snapshot.phase, snapshot.commitSeconds);
+  const track = useRef<TotalTrack | null>(null);
+  if (remaining === null || baseTotal === null || snapshot.deadline === null) return null;
+  const key = `${snapshot.gameId ?? ""}:${snapshot.round ?? ""}:${snapshot.playIndex ?? ""}:${snapshot.phase}`;
+  track.current = trackTotal(track.current, key, snapshot.deadline, baseTotal, remaining);
+  const total = track.current.total;
   const label = countdownLabel(snapshot);
   const urgent = isUrgent(snapshot.phase, remaining);
   const fraction = progressFraction(remaining, total);

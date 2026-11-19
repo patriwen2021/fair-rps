@@ -33,6 +33,8 @@ export function DemoApp({ scene }: { scene: string }) {
     hostStartRound: async () => OK,
     hostNext: async () => OK,
     hostReset: async () => OK,
+    hostExtend: async () => OK,
+    hostEndEarly: async () => OK,
     leaveHost: () => undefined,
     initialAvatar: "🦊",
     ...(found.initialCommitError ? { initialCommitError: found.initialCommitError } : {}),

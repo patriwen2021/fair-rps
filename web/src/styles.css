@@ -2148,3 +2148,37 @@ textarea {
     font-size: 0.64rem;
   }
 }
+
+.host-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.host-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.host-controls-row .btn {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+.host-toast {
+  position: sticky;
+  top: 8px;
+  z-index: 30;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  margin: 8px auto 0;
+  padding: 10px 20px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--lock);
+  box-shadow: var(--shadow-small);
+  font-weight: 900;
+  text-align: center;
+}

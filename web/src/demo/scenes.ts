@@ -190,6 +190,7 @@ function snap(
     round: rounds === null ? null : rounds.length - 1,
     playIndex: timed || phase === "result" ? 0 : null,
     championId: null,
+    lastHostAction: null,
     ...extra,
   };
 }
@@ -232,12 +233,19 @@ function round0(first: Match, second: Match, question = Q1): Round[] {
   return [round(0, question, [first, second], MEI)];
 }
 
-function commitScene(a: Sealed | null, b: Sealed | null, remaining = 21_000, question = Q1): RoomSnapshot {
+function commitScene(
+  a: Sealed | null,
+  b: Sealed | null,
+  remaining = 21_000,
+  question = Q1,
+  extra: Partial<RoomSnapshot> = {},
+): RoomSnapshot {
   return snap(
     "commit",
     remaining,
     round0(match(0, 0, [MING, HUA], "playing", [hidden(0, a, b)]), otherMatchPlaying(S.peiRock, null), question),
     players({}),
+    extra,
   );
 }
 
@@ -555,6 +563,9 @@ export const DEMO_SCENES: DemoScene[] = [
   scene("champion-64", "冠軍：64 人完整賽程", WATCHER, tree64Finished),
 
   scene("commit-open", "作答：雙方未鎖", ME, commitScene(null, null, 27_000)),
+  scene("commit-extended", "作答：裁判剛加時 +30 秒（玩家）", ME, commitScene(null, S.huaScissors, 44_000, Q1, {
+    lastHostAction: { id: 1, kind: "extend", seconds: 30, at: DEMO_NOW - 400 },
+  })),
   scene("commit-me-locked", "作答：我已鎖", ME, commitScene(S.mingRock, null), { commits: mine(S.mingRock) }),
   scene("commit-opp-locked", "作答：對手已鎖", ME, commitScene(null, S.huaScissors, 14_000)),
   scene("commit-both-locked", "作答：雙方已鎖", ME, commitScene(S.mingRock, S.huaScissors, 9_000), {
@@ -572,6 +583,13 @@ export const DEMO_SCENES: DemoScene[] = [
   scene("reveal", "揭示中", ME, reveal(commitScene(S.mingRock, S.huaScissors)), { commits: mine(S.mingRock) }),
 
   scene("watch-2", "觀賽看板：2 場（晚到的觀賽者）", WATCHER, commitScene(S.mingRock, null, 18_000)),
+  scene("watch-extended", "觀賽看板：裁判剛加時 +10 秒", WATCHER, commitScene(S.mingRock, null, 28_000, Q1, {
+    lastHostAction: { id: 2, kind: "extend", seconds: 10, at: DEMO_NOW - 400 },
+  })),
+  scene("reveal-end-early", "揭示中：裁判提前結束作答（玩家）", ME, {
+    ...reveal(commitScene(S.mingRock, null), 3_000),
+    lastHostAction: { id: 3, kind: "endEarly", at: DEMO_NOW - 400 },
+  }, { commits: mine(S.mingRock) }),
   scene("watch-16", "觀賽看板：16 場", WATCHER, commit32),
   scene("watch-seed", "觀賽看板：輪空種子", as(MEI), commitScene(S.mingRock, null, 18_000)),
   scene("watch-eliminated", "觀賽看板：已淘汰", as(HUA, afterR0(HUA)), round1Commit),
@@ -677,6 +695,10 @@ export const DEMO_SCENES: DemoScene[] = [
   scene("results-16", "觀賽者看結果列表：8 場", WATCHER, result16),
 
   scene("host-commit", "裁判總覽：作答中", HOST, commitScene(S.mingRock, null, 18_000)),
+  scene("host-commit-limit", "裁判總覽：作答中，剩餘已達 120 秒上限", HOST, commitScene(S.mingRock, null, 125_000)),
+  scene("host-commit-extended", "裁判總覽：作答中，剛加時 30 秒", HOST, commitScene(S.mingRock, null, 48_000, Q1, {
+    lastHostAction: { id: 1, kind: "extend", seconds: 30, at: DEMO_NOW - 400 },
+  })),
   scene("host-commit-16", "裁判總覽：作答中 16 場", HOST, commit32),
   scene("host-commit-long", "裁判總覽：100 字問題", HOST, commitScene(S.mingRock, S.huaScissors, 18_000, LONG_QUESTION)),
   scene("host-reveal", "裁判總覽：揭示中", HOST, reveal(commitScene(S.mingRock, S.huaScissors))),

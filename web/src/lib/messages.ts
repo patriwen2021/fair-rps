@@ -1,6 +1,7 @@
 import {
   COMMIT_SECONDS_MAX,
   COMMIT_SECONDS_MIN,
+  MAX_REMAINING_SECONDS,
   MIN_PLAYERS_TO_START,
   QUESTION_MAX_LENGTH,
   NICKNAME_MAX_COMBINING_MARKS,
@@ -28,6 +29,8 @@ export const ERROR_MESSAGE: Record<ActionError, string> = {
   INVALID_AVATAR: "伺服器不接受這個頭像，請重新選一個再加入。",
   INVALID_COMMIT_SECONDS: `作答時間需為 ${COMMIT_SECONDS_MIN}–${COMMIT_SECONDS_MAX} 秒的整數。`,
   INVALID_QUESTION: `伺服器不接受這個問題。問題需為 1–${QUESTION_MAX_LENGTH} 個字，請修改後再送出。`,
+  INVALID_EXTEND: "加時秒數不正確，請重新整理頁面再試一次。",
+  EXTEND_LIMIT: `剩餘時間已達上限（${MAX_REMAINING_SECONDS} 秒），不能再加時。`,
   NOT_ENOUGH_PLAYERS: `至少要 ${MIN_PLAYERS_TO_START} 位在線玩家才能開始。`,
   NOT_IN_MATCH: "這一場不是你的比賽。",
   MATCH_NOT_ACTIVE: "這一場目前沒有在進行。",

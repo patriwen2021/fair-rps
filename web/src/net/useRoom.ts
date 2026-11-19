@@ -36,7 +36,7 @@ import {
   withoutCommit,
 } from "../lib/storage.js";
 import { findDuelMatch, findSelf, type ConnStatus } from "../lib/view.js";
-import type { ActionResult, CommitInput, RoomModel } from "../model.js";
+import type { ActionResult, CommitInput, ExtendSeconds, RoomModel } from "../model.js";
 
 type RoomSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -267,6 +267,16 @@ export function useRoom(): RoomModel {
     [emitHost],
   );
 
+  const hostExtend = useCallback(
+    (seconds: ExtendSeconds) =>
+      emitHost((socket) => socket.timeout(ACK_TIMEOUT_MS).emitWithAck("host:extend", { seconds })),
+    [emitHost],
+  );
+  const hostEndEarly = useCallback(
+    () => emitHost((socket) => socket.timeout(ACK_TIMEOUT_MS).emitWithAck("host:endEarly", {})),
+    [emitHost],
+  );
+
   const leaveHost = useCallback(() => {
     clearHostToken();
     stripHostTokenFromUrl();
@@ -287,8 +297,10 @@ export function useRoom(): RoomModel {
       hostStartRound,
       hostNext,
       hostReset,
+      hostExtend,
+      hostEndEarly,
       leaveHost,
     }),
-    [conn, session, snapshot, offset, commits, join, commit, hostStart, hostStartRound, hostNext, hostReset, leaveHost],
+    [conn, session, snapshot, offset, commits, join, commit, hostStart, hostStartRound, hostNext, hostReset, hostExtend, hostEndEarly, leaveHost],
   );
 }

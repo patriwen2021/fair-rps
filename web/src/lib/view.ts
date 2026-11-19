@@ -1,4 +1,5 @@
 import {
+  MAX_REMAINING_SECONDS,
   NEXT_STEP_LABEL,
   commitStatuses,
   currentPlay,
@@ -157,4 +158,41 @@ export function waitingForHostText(snapshot: RoomSnapshot): string | null {
     return snapshot.hostConnected ? `等待裁判進行下一步${step}` : `裁判暫時離線，等待裁判回來進行下一步${step}`;
   }
   return null;
+}
+
+export type HostActionRecord = NonNullable<RoomSnapshot["lastHostAction"]>;
+
+export const HOST_TOAST_MS = 3_000;
+
+export const EXTEND_LIMIT_TOLERANCE_MS = 2_000;
+
+export function isAtExtendLimit(remainingMs: number | null): boolean {
+  return remainingMs !== null && remainingMs >= MAX_REMAINING_SECONDS * 1000 - EXTEND_LIMIT_TOLERANCE_MS;
+}
+
+export function lockedSummary(snapshot: RoomSnapshot): { locked: number; total: number } {
+  const { locked, total } = boardOf(snapshot);
+  return { locked, total };
+}
+
+export function hostActionText(action: HostActionRecord): string {
+  return action.kind === "extend" ? `裁判加時 +${action.seconds} 秒` : "裁判提前結束作答";
+}
+
+export interface HostToast {
+  key: string;
+  text: string;
+}
+
+export function hostActionToast(
+  action: HostActionRecord | null,
+  gameId: string | null,
+  seenKey: string | null,
+  serverNow: number,
+): HostToast | null {
+  if (action === null) return null;
+  const key = `${gameId ?? ""}:${action.id}`;
+  if (key === seenKey) return null;
+  if (serverNow - action.at > HOST_TOAST_MS) return null;
+  return { key, text: hostActionText(action) };
 }

@@ -1,6 +1,8 @@
-import { randomBytes, randomInt } from "node:crypto";
+import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import {
   COMMIT_SECONDS_DEFAULT,
+  EXTEND_SECONDS_OPTIONS,
+  MAX_REMAINING_SECONDS,
   GAME_ID_HEX_LENGTH,
   CONNECTION_BROADCAST_COALESCE_MS,
   LOBBY_DISCONNECT_GRACE_MS,
@@ -31,6 +33,7 @@ import {
   type Bracket,
   type DecisionReason,
   type Empty,
+  type HostAction,
   type ErrorCode,
   type HiddenPlay,
   type JoinResult,
@@ -138,6 +141,9 @@ export class Game {
   private round: number | null = null;
   private playIndex: PlayIndex | null = null;
   private championId: PlayerId | null = null;
+  private lastHostAction: HostAction | null = null;
+  private hostActionSeq = 0;
+  private readonly seedCounts = new Map<PlayerId, number>();
   private phaseTimer: unknown = null;
   private connectionTimer: unknown = null;
   private connectionPending = false;
@@ -176,6 +182,7 @@ export class Game {
       round: this.round,
       playIndex: this.playIndex,
       championId: this.championId,
+      lastHostAction: this.lastHostAction === null ? null : { ...this.lastHostAction },
     };
     const leaks = snapshotLeaks(snapshot);
     if (leaks.length > 0) throw new Error(`snapshot leak: ${leaks.join("; ")}`);
@@ -184,7 +191,13 @@ export class Game {
   }
 
   resumeSession(sessionToken: string): PlayerId | null {
-    return this.tokens.get(sessionToken) ?? null;
+    const digest = createHash("sha256").update(sessionToken, "utf8").digest();
+    let found: PlayerId | null = null;
+    for (const [token, playerId] of this.tokens) {
+      const candidate = createHash("sha256").update(token, "utf8").digest();
+      if (timingSafeEqual(digest, candidate)) found = playerId;
+    }
+    return found;
   }
 
   nicknameOf(playerId: PlayerId): string | null {
@@ -275,6 +288,8 @@ export class Game {
     this.gameId = this.rng.hex(GAME_ID_HEX_LENGTH);
     this.bracket = { rounds: [] };
     this.championId = null;
+    this.lastHostAction = null;
+    this.seedCounts.clear();
     this.openRound(this.shuffle(online.map((player) => player.id)));
     this.notify();
     return OK;
@@ -328,6 +343,42 @@ export class Game {
     this.round = null;
     this.playIndex = null;
     this.championId = null;
+    this.lastHostAction = null;
+    this.seedCounts.clear();
+    this.notify();
+    return OK;
+  }
+
+  hostExtend(actor: Actor, payload: unknown): Ack<Empty> {
+    if (!isRecord(payload)) return fail("INVALID_PAYLOAD");
+    if (actor.role !== "host") return fail("NOT_HOST");
+    if (!this.commitStillOpen()) return fail("WRONG_PHASE");
+    const seconds = payload.seconds;
+    if (!EXTEND_SECONDS_OPTIONS.some((option) => option === seconds)) return fail("INVALID_EXTEND");
+    const now = this.clock.now();
+    const deadline = this.deadline as number;
+    if (deadline - now >= MAX_REMAINING_SECONDS * 1000) return fail("EXTEND_LIMIT");
+    const extended = Math.min(
+      deadline + (seconds as number) * 1000,
+      now + MAX_REMAINING_SECONDS * 1000,
+    );
+    this.armPhaseTimer(extended - now, () => this.startReveal());
+    this.lastHostAction = {
+      id: ++this.hostActionSeq,
+      kind: "extend",
+      seconds: seconds as number,
+      at: now,
+    };
+    this.notify();
+    return OK;
+  }
+
+  hostEndEarly(actor: Actor, payload: unknown): Ack<Empty> {
+    if (!isRecord(payload)) return fail("INVALID_PAYLOAD");
+    if (actor.role !== "host") return fail("NOT_HOST");
+    if (!this.commitStillOpen()) return fail("WRONG_PHASE");
+    this.lastHostAction = { id: ++this.hostActionSeq, kind: "endEarly", at: this.clock.now() };
+    this.startReveal();
     this.notify();
     return OK;
   }
@@ -500,6 +551,19 @@ export class Game {
     this.phaseTimer = null;
   }
 
+  private commitStillOpen(): boolean {
+    return (
+      this.phase === "commit" &&
+      this.deadline !== null &&
+      this.phaseTimer !== null &&
+      this.clock.now() < this.deadline
+    );
+  }
+
+  private startReveal(): void {
+    this.enter("reveal", this.timings.revealMs, () => this.settle());
+  }
+
   private enter(phase: Phase, durationMs: number | null, next?: () => void): void {
     this.cancelPhaseTimer();
     this.phase = phase;
@@ -507,6 +571,11 @@ export class Game {
       this.deadline = null;
       return;
     }
+    this.armPhaseTimer(durationMs, next);
+  }
+
+  private armPhaseTimer(durationMs: number, next: () => void): void {
+    this.cancelPhaseTimer();
     this.deadline = this.clock.now() + durationMs;
     this.phaseTimer = this.clock.setTimeout(() => {
       this.phaseTimer = null;
@@ -525,7 +594,9 @@ export class Game {
     const queue = [...entrants];
     let byePlayerId: PlayerId | null = null;
     if (queue.length % 2 === 1) {
-      byePlayerId = queue.splice(this.rng.int(queue.length), 1)[0] ?? null;
+      byePlayerId = this.pickSeed(queue, this.bracket.rounds[index - 1]?.byePlayerId ?? null);
+      queue.splice(queue.indexOf(byePlayerId), 1);
+      this.seedCounts.set(byePlayerId, (this.seedCounts.get(byePlayerId) ?? 0) + 1);
     }
     const matches: Match[] = [];
     for (let i = 0; i + 1 < queue.length; i += 2) {
@@ -547,6 +618,14 @@ export class Game {
     this.enter("bracket", null);
   }
 
+  private pickSeed(entrants: PlayerId[], previousSeed: PlayerId | null): PlayerId {
+    const candidates = entrants.filter((id) => id !== previousSeed);
+    const pool = candidates.length > 0 ? candidates : entrants;
+    const fewest = Math.min(...pool.map((id) => this.seedCounts.get(id) ?? 0));
+    const tied = pool.filter((id) => (this.seedCounts.get(id) ?? 0) === fewest);
+    return tied[this.rng.int(tied.length)] as PlayerId;
+  }
+
   private beginPlay(playIndex: PlayIndex): void {
     const round = this.currentRound();
     if (round === null) throw new Error("no current round");
@@ -558,9 +637,8 @@ export class Game {
       match.plays.push({ index: playIndex, revealed: false, commits: [null, null] });
     }
     this.playIndex = playIndex;
-    this.enter("commit", commitDurationMs(this.commitSeconds), () =>
-      this.enter("reveal", this.timings.revealMs, () => this.settle()),
-    );
+    this.lastHostAction = null;
+    this.enter("commit", commitDurationMs(this.commitSeconds), () => this.startReveal());
   }
 
   private settle(): void {
